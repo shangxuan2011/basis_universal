@@ -1,4 +1,4 @@
-// basisu_enc.h
+﻿// basisu_enc.h
 // Copyright (C) 2019-2024 Binomial LLC. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -2755,6 +2755,23 @@ namespace basisu
 
 	// Simple 32-bit 2D image class
 
+	struct image_size {
+		image_size() {}
+		image_size(uint32_t w, uint32_t h, uint32_t pb):m_image_width(w), m_image_height(h), m_pixel_bytes(pb), m_row_bytes(w * pb) {}
+		image_size(uint32_t w, uint32_t h, uint32_t pb, uint32_t rb) :m_image_width(w), m_image_height(h), m_pixel_bytes(pb), m_row_bytes(rb) {}
+		bool valid() const { 
+			return m_image_width != 0 
+				&& m_image_height != 0
+				&& m_pixel_bytes >= 1 
+				&& m_pixel_bytes <= 4
+				&& m_row_bytes >= (m_image_width * m_pixel_bytes); 
+		}
+		uint32_t m_image_width = 0;		//in pixels
+		uint32_t m_image_height = 0;	//in pixels
+		uint32_t m_pixel_bytes = 0;		//一个像素的字节数
+		uint32_t m_row_bytes = 0;		//一行的字节数
+	};
+
 	class image
 	{
 	public:
@@ -2854,45 +2871,76 @@ namespace basisu
 			return *this;
 		}
 
+		void init(const uint8_t* pImage, const image_size& size,
+			std::function<void(color_rgba&, const uint8_t*)> rgbaReader) {
+			assert(size.valid());
+
+			resize(size.m_image_width, size.m_image_height);
+			for (uint32_t y = 0; y < size.m_image_height; y++)
+			{
+				auto data = pImage + y * size.m_row_bytes;
+				for (uint32_t x = 0; x < size.m_image_width; x++)
+				{
+					color_rgba& dst = (*this)(x, y);
+					rgbaReader(dst, data);
+					data += size.m_pixel_bytes;
+				}
+			}
+		}
+
 		void init(const uint8_t *pImage, uint32_t width, uint32_t height, uint32_t comps)
 		{
 			assert(comps >= 1 && comps <= 4);
-			
-			resize(width, height);
-
-			for (uint32_t y = 0; y < height; y++)
-			{
-				for (uint32_t x = 0; x < width; x++)
-				{
-					const uint8_t *pSrc = &pImage[(x + y * width) * comps];
-					color_rgba &dst = (*this)(x, y);
-
-					if (comps == 1)
-					{
-						dst.r = pSrc[0];
-						dst.g = pSrc[0];
-						dst.b = pSrc[0];
-						dst.a = 255;
-					}
-					else if (comps == 2)
-					{
-						dst.r = pSrc[0];
-						dst.g = pSrc[0];
-						dst.b = pSrc[0];
-						dst.a = pSrc[1];
-					}
-					else
-					{
-						dst.r = pSrc[0];
-						dst.g = pSrc[1];
-						dst.b = pSrc[2];
-						if (comps == 4)
-							dst.a = pSrc[3];
-						else
-							dst.a = 255;
-					}
-				}
+			switch (comps) {
+			case 1:
+				init(pImage, image_size(width, height, 1), [](color_rgba& dst, const uint8_t* src) { dst.r = dst.g = dst.b = src[0]; dst.a = 255; });
+				break;
+			case 2:
+				init(pImage, image_size(width, height, 2), [](color_rgba& dst, const uint8_t* src) { dst.r = dst.g = dst.b = src[0]; dst.a = src[1]; });
+				break;
+			case 3:
+				init(pImage, image_size(width, height, 3), [](color_rgba& dst, const uint8_t* src) { dst.r = src[0]; dst.g = src[1]; dst.b = src[2]; dst.a = 255; });
+				break;
+			case 4:
+				init(pImage, image_size(width, height, 3), [](color_rgba& dst, const uint8_t* src) { dst.r = src[0]; dst.g = src[1]; dst.b = src[2]; dst.a = src[3]; });
+				break;
+			default:
+				assert(0);
+				break;
 			}
+			//for (uint32_t y = 0; y < height; y++)
+			//{
+			//	for (uint32_t x = 0; x < width; x++)
+			//	{
+			//		const uint8_t *pSrc = &pImage[(x + y * width) * comps];
+			//		color_rgba &dst = (*this)(x, y);
+
+			//		if (comps == 1)
+			//		{
+			//			dst.r = pSrc[0];
+			//			dst.g = pSrc[0];
+			//			dst.b = pSrc[0];
+			//			dst.a = 255;
+			//		}
+			//		else if (comps == 2)
+			//		{
+			//			dst.r = pSrc[0];
+			//			dst.g = pSrc[0];
+			//			dst.b = pSrc[0];
+			//			dst.a = pSrc[1];
+			//		}
+			//		else
+			//		{
+			//			dst.r = pSrc[0];
+			//			dst.g = pSrc[1];
+			//			dst.b = pSrc[2];
+			//			if (comps == 4)
+			//				dst.a = pSrc[3];
+			//			else
+			//				dst.a = 255;
+			//		}
+			//	}
+			//}
 		}
 
 		image &fill_box(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const color_rgba &c)
