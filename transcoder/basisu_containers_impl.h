@@ -1,9 +1,11 @@
-// basisu_containers_impl.h
+﻿// basisu_containers_impl.h
 // Do not include directly
 
 #ifdef _MSC_VER
 #pragma warning (disable:4127) // warning C4127: conditional expression is constant
 #endif
+
+#include <locale>
 
 namespace basisu
 {
